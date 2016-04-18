@@ -1,0 +1,7 @@
+https://www.cs.cmu.edu/~quake/triangle.html
+This details the Triangle program that preforms the bulk of the meshing
+
+Triangulate.py contains the class that interacts with the input and output files of the Triangle program
+and produces an array of triangles that we can use in our main code
+
+Run triangulateDemo.py to see how this works in practice
