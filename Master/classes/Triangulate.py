@@ -25,6 +25,7 @@ class Triangulate():
 		self.points = []
 		# Contains the x,y positions of the center of each hole
 		self.hole_centers = []
+		self.hole_radii = []
 		self.edges = []
 		self.vertices = []
 
@@ -53,6 +54,7 @@ class Triangulate():
 		if(hole_type == self.POLYGON):
 			sides = args[0]
 			radius = args[1]
+			hole_raddi.append(radius)
 			angle = (math.pi * 2) / sides
 			angle_number = 0
 			
@@ -199,6 +201,15 @@ class Triangulate():
 	# These integers are indices of points in the vertices[] array
 	def get_edges(self):
 		return np.asarray(self.edges)
+
+	def get_hole_centers(self):
+		a = np.asarray(self.hole_centers)
+		return a.astype(np.float)
+
+	def get_hole_radii(self):
+		a = np.asarray(self.hole_radii)
+		return a.astype(np.float)
+		
 
 
 		

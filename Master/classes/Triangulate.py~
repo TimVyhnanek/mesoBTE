@@ -178,6 +178,7 @@ class Triangulate():
 		# I'm not sure on Windows or Mac
 		# Here's a link to the documentation: https://www.cs.cmu.edu/~quake/triangle.html
 		# Feel free to play with the different flags and see how it affects the triangulation
+		os.system("make")
 		os.system("./triangle -p " + flags + " " + self.filename + ".poly")
 		# This is a tool which displays the triangulation, we don't actually need this
 		os.system("./showme " + self.filename + ".1.ele")
