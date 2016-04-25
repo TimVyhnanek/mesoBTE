@@ -1,5 +1,6 @@
 import math
 import os
+import numpy as np
 
 class Triangulate():
 	
@@ -8,8 +9,6 @@ class Triangulate():
 		self.POLYGON = 0
 		self.RECTANGLE = 1
 		self.ELLIPSE = 2
-		# Will determine how precise we make the ellipse, but this isn't finished yet
-		self.ELLIPSE_PRECISION = 15
 	
 		# Name of input and output files
 		self.filename = filename
@@ -20,23 +19,26 @@ class Triangulate():
 		# Array of Triangles
 		# Structure [triangle_index][edge_index][x_pos, y_pos, boundary]
 		self.triangles = []
+		self.indices = []
+		self.points = []
 		# Contains the x,y positions of the center of each hole
 		self.hole_centers = []
+		self.hole_radii = []
 		self.edges = []
 		self.vertices = []
 
 		#Begins with outer square of side length 1
-		self.vertices.append((0,0))
-		self.vertices.append((0,1))
-		self.vertices.append((1,1))
-		self.vertices.append((1,0))
+		self.vertices.append([0,0])
+		self.vertices.append([0,1])
+		self.vertices.append([1,1])
+		self.vertices.append([1,0])
 		self.num_vertices += 4
 
 		#Connects edges of square
-		self.edges.append((1,2))
-		self.edges.append((2,3))
-		self.edges.append((3,4))
-		self.edges.append((4,1))
+		self.edges.append([1,2])
+		self.edges.append([2,3])
+		self.edges.append([3,4])
+		self.edges.append([4,1])
 		self.num_edges += 4
 
 	def add_hole(self, hole_type, x_pos, y_pos, *args):
@@ -50,6 +52,7 @@ class Triangulate():
 		if(hole_type == self.POLYGON):
 			sides = args[0]
 			radius = args[1]
+			hole_raddi.append(radius)
 			angle = (math.pi * 2) / sides
 			angle_number = 0
 			
@@ -58,7 +61,7 @@ class Triangulate():
 				self.num_edges += 1
 				xn = x_pos + (radius * math.cos(angle * angle_number))
 				yn = y_pos + (radius * math.sin(angle * angle_number))		
-				self.vertices.append((xn,yn))
+				self.vertices.append([xn,yn])
 				angle_number += 1
 
 		
@@ -67,24 +70,52 @@ class Triangulate():
 			height = args[1]
 			sides = 4
 
-			self.vertices.append((x_pos + width/2, x_pos + height/2))
-			self.vertices.append((x_pos + width/2, x_pos - height/2))
-			self.vertices.append((x_pos - width/2, x_pos - height/2))
-			self.vertices.append((x_pos - width/2, x_pos + height/2))
+			self.vertices.append([x_pos + width/2, x_pos + height/2])
+			self.vertices.append([x_pos + width/2, x_pos - height/2])
+			self.vertices.append([x_pos - width/2, x_pos - height/2])
+			self.vertices.append([x_pos - width/2, x_pos + height/2])
 			
 			self.num_vertices += 4
 			self.num_edges += 4
 						
-		# Still looking for an algorithm that produces
-		# An accurate ellipse with a resonable amount of points
+		# This approximates an ellipse with a polygon
+		# Uses the tangent lines of an ideal ellipse to place points where they are most needed
+		# Builds the ellipse one quadrant at a time
+		# 3 Arguments: x-radius (a), y-radius (b), and edges per quadrant (N)
 		elif(hole_type == self.ELLIPSE):
-			x_radius = args[0]
-			y_radius = args[1]
-			sides = self.ELLIPSE_PRECISION
-			################
-			###INCOMPLETE###
-			################
-		
+			a = args[0]
+			b = args[1]
+			N = args[2]
+			pi = math.pi
+			temp = []
+			quad_order = [0, 3, 2, 1]			
+			for j in range(0,4):
+				temp2 = []
+				for i in range(0, N-1):
+					theta = (pi/2 * i / N) + (pi/2 * j)
+					phi = pi/2 - math.atan(math.tan(theta) * a/b)
+					x = x_pos + (a * math.cos(phi + (j/2 * pi)))
+					y = y_pos + (b * math.sin(phi + (j/2 * pi)))
+					temp2.append([x,y])
+					sides += 1
+				temp.append(temp2)
+
+			#Rearranges the quadrants
+			for i in range(0,4):
+				quad = temp[quad_order[i]]
+				for point in quad:
+					self.vertices.append(point)
+					print "%f   %f" %(point[0], point[1])
+			
+			# Don't ask  me why this indexing works, just know that it does
+			self.vertices[initial_vertex + (N-1) - 1], self.vertices[initial_vertex + (3 * (N-1)) - 1] = self.vertices[initial_vertex + (3 * (N-1)) - 1], self.vertices[initial_vertex + (N-1) - 1]
+					
+
+			self.num_vertices += sides
+			self.num_edges += sides
+			
+
+
 		# Writes edges
 		for j in range(initial_vertex, initial_vertex + sides):
 				if j == (initial_vertex + sides - 1):
@@ -97,6 +128,15 @@ class Triangulate():
 	#Use this method instead of directly accessing the array in order to prevent data corruption
 	def get_triangles(self):
 		return self.triangles
+
+	def get_indices(self):
+		a = np.asarray(self.indices)
+		a = a.astype(np.int)
+		for i in a:
+			i[0] = i[0]-1
+			i[1] = i[1]-1
+			i[2] = i[2]-1
+		return a
 
 	#filename must have a .poly extension
 	def write_poly_file(self):
@@ -138,6 +178,7 @@ class Triangulate():
 		num_triangles = int(first_line[0])
 		for i in range(1, num_triangles + 1):
 			line = f.readline().split()
+			self.indices.append([line[1], line[2], line[3]])
 			node_indices.append((line[1], line[2], line[3]))
 
 		# Reads .node file, which contains the absolute position of each vertex
@@ -146,6 +187,7 @@ class Triangulate():
 		num_points = int(first_line[0])
 		for j in range(1, num_points + 1):
 			line = f2.readline().split()
+			self.points.append([line[1], line[2], line[3]])
 			node_values.append((line[1], line[2], line[3]))
 		
 		for k in range(1, num_triangles + 1):
@@ -164,6 +206,7 @@ class Triangulate():
 		# I'm not sure on Windows or Mac
 		# Here's a link to the documentation: https://www.cs.cmu.edu/~quake/triangle.html
 		# Feel free to play with the different flags and see how it affects the triangulation
+		#os.system("make")
 		os.system("triangle -p " + flags + " " + self.filename + ".poly")
 		# This is a tool which displays the triangulation, we don't actually need this
 		os.system("showme " + self.filename + ".1.ele")
@@ -173,13 +216,38 @@ class Triangulate():
 	# Can be used in conjuction with the get_edges method
 	# This is an alternative to the boundary point value in the triangles array
 	def get_vertices(self):
-		return self.vertices
+		return np.asarray(self.vertices)
 
+	def get_points(self):
+		a = np.asarray(self.points)
+		ret = a.astype(np.float)
+		return ret
 	# Returns the edges of the main square and the holes
 	# Each edge is denonted by 2 integers
 	# These integers are indices of points in the vertices[] array
 	def get_edges(self):
-		return self.edges
+		return np.asarray(self.edges)
+
+	def get_hole_centers(self):
+		a = np.asarray(self.hole_centers)
+		return a.astype(np.float)
+
+	def get_hole_radii(self):
+		a = np.asarray(self.hole_radii)
+		return a.astype(np.float)
+		
+
+	# Uses Hero's Formula to calculate area of a given triangle
+	# Useful for calculating things like charge density
+	def get_triangle_area(self, index):
+		tri = self.triangles[index]
+		a = math.sqrt((tri[0][0] - tri[1][0]) ** 2 + (tri[0][1] - tri[1][1]) ** 2)
+		b = math.sqrt((tri[1][0] - tri[2][0]) ** 2 + (tri[1][1] - tri[2][1]) ** 2)
+		c = math.sqrt((tri[2][0] - tri[0][0]) ** 2 + (tri[2][1] - tri[0][1]) ** 2)
+
+		area = math.sqrt(s * (s - a) * (s - b) * (s - c))
+	
+		return area
 
 
 		
